@@ -199,12 +199,43 @@ int main(int argc, char *argv[]){
     
     printf("Implementation Memory Size:      %d KB (%d) bytes\n", (implementationMemory/1024), (implementationMemory));
     
-    printf("Cost                             $%.2lf @ ($0.09 / KB)", ((implementationMemory/1024)*COST_MULTIPLIER));
+    printf("Cost                             $%.2lf @ ($0.09 / KB)\n\n\n", ((implementationMemory/1024)*COST_MULTIPLIER));
     
     
+    //The following regards parsing the trace file (first trace only)
     
-    
-    
+    if(numLoops==0){
+      printf("Printing the first 20 addresses and lengths of cache operations in %s:\n\n", trace1Name);
+      int whileLoops = 0;
+      //Only need to print for first trace file
+      FILE *file = fopen(trace1Name, "r");
+      //Error checking is good for the environment
+      if (file == NULL) {
+        perror("Error opening file");
+        return 1;
+      }
+
+      char line[100];
+
+      while (fgets(line, sizeof(line), file) && whileLoops<60) {//This is 60 because the loop also has to count through the other lines (3 lines per instruction)
+        char prefix[19];
+        char address_str[10];  
+        int length;
+
+        // Copy the first 18 characters into prefix
+        strncpy(prefix, line, 18);
+        prefix[18] = '\0';//Null-terminating to tell it to stop
+        
+        //sscanf length and adress
+        if( sscanf(prefix, "EIP (%d): %s", &length, address_str) == 2){
+          printf("0x%s (0%d)\n", address_str, length);
+        }
+        whileLoops++;
+      }
+      fclose(file);
+
+    }
+
     
     
     printf("\n\n");

@@ -7,5 +7,5 @@ clean:
 	rm -f *.o Sim
 
 Sim: cacheSimulator.c
-	$(CC) $(CFLAGS) cacheSimulator.c -o Sim
+	$(CC) $(CFLAGS) cacheSimulator.c -o Sim -lm
 

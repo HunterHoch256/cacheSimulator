@@ -6,8 +6,17 @@
 #include <stdbool.h>
 #include <math.h>
 #include <errno.h>
+#include <stdint.h>
 
-int main(int argc, char* argv[]){
+/*
+int log2(int numIn){
+  int num;
+  num = (int)(log10(numIn) / log10(2));
+  return num;
+}
+*/
+
+int main(int argc, char *argv[]){
   
   //printf("HelloWorld!\n");
   
@@ -31,6 +40,12 @@ int main(int argc, char* argv[]){
   
   //The information printed/calculated for Milestone 1 must be done for each given trace file (each trace file is fully evaluated before the next)
   
+  //Some quick error checking
+  if (argc < 2) {
+        printf("Usage: %s -f trace1.trc [-f trace2.trc ...] -s cacheSize -b blockSize -a associativity -r replacePolicy -p physicalSize\n", argv[0]);
+        return 1;
+    }
+  
   
   int count = 0;//Use this to track number if times looped
   char* trace1Name;
@@ -40,68 +55,149 @@ int main(int argc, char* argv[]){
   char* trace3Name;
   int trace3Found = 0;
   //Note to self: Could make an array of char arrays for trace files.
-  int cacheSize;
-  int blockSize;
-  int associativity;
+  int cacheSize = 0; //Stored in bytes/KB
+  int blockSize = 0;
+  int associativity = 0;
   char* replacePolicy;
-  int physicalSize; //Im going to convert the values to bytes/KB on the command line, thus it being an int
+  int physicalSize = 0; //Im going to convert the values to bytes/KB on the command line, thus it being an int. int luckily has enough room for the max size value 
+  //The following values all require calculation
+  int totalBlocks;
+  int BUS_SIZE = 32; //THIS IS TECHNICALLY CONSTANT
+  int offset;//Might need to make a double
+  int tagSize;
+  int indexSize;
+  int totalRows;
+  int overhead;
+  int implementationMemory; 
+  int cost;
   
-  while (count < argc){
+  
+  int i;
+  for (i = 1; i < argc; i++){
+    //printf("%s\n", argv[i]);
+    
+    //printf("Comparing %s to -f. Result is: %d\n", argv[i], strcmp(argv[i],"-f"));
+    
     //NOTE TO SELF: Change this to a switch statement after verifying it works
-    if (strcmp("-f",argv[count]) == 0){
+    if (strncmp(argv[i], "-f", 2) == 0){
+      //printf("Found trace file\n");
       //Found a trace file indicator! Need to determine the trace to put it in
       if(trace1Found==0){
         //No trace files found yet. Put in trace1Name
-        trace1Name = argv[count++];
+        trace1Name = argv[i+1];
         trace1Found = 1;
       }
       else if(trace2Found==0){
         //Trace 1 has been accounted for, must put in Trace 2
-        trace2Name = argv[count++];
+        trace2Name = argv[i+1];
         trace2Found = 1;
       }
       else{
         //Trace 1 and 2 are both determined. Must put in Trace 3 (last possible trace)
-        trace3Name = argv[count++];
+        trace3Name = argv[i+1];
         trace3Found = 1;
       }
     }
-    
-    if(strcmp("-s",argv[count])==0){
+    else if(strncmp(argv[i], "-s", 2)==0){
       //Found a cacheSize indicator!
-      cacheSize = atoi(argv[count++]);
+      //printf("Found cacheSize\n");
+      cacheSize = atoi(argv[i+1]);
     }
-    
-    if(strcmp("-b",argv[count])==0){
+    else if(strncmp(argv[i], "-b", 2)==0){
       //Found a blockSize indicator!
-      blockSize = atoi(argv[count++]);
+      //printf("Found blockSize\n");
+      blockSize = atoi(argv[i+1]);
     }
-    
-    if(strcmp("-a",argv[count])==0){
+    else if(strncmp(argv[i], "-a", 2)==0){
       //Found an associativity indicator!
-      associativity = atoi(argv[count++]);
+      //printf("Found associativity\n");
+      associativity = atoi(argv[i+1]);
     }
-    
-    if(strcmp("-r",argv[count])==0){
+    else if(strncmp(argv[i], "-r", 2)==0){
       //Found a replacePolicy indicator!
-      replacePolicy = argv[count++];
+      //printf("Found replacePolicy\n");
+      replacePolicy = argv[i+1];
     }
-    
-    if(strcmp("-p",argv[count])==0){
+    else if(strncmp(argv[i], "-p", 2)==0){
       //Found a physicalSize indicator!
-      physicalSize = atoi(argv[count++]);
+      //printf("Found physSize\n");
+      physicalSize = atoi(argv[i+1]);
+    }
+    else {
+      //printf("No matching if\n");//DEBUG
     }
     
     //argv[0] is just the executable, and the current system simply wont trip any of the if statements.
-    count++;
+    
   }
   
+ 
   
+  //Calculate number of trace files (i.e # of loops the cache will experience)
+  //Note to self: This could go in with the actual command line processing
+  int numTraces;
+  if (trace1Found==1){
+    numTraces = 1;
+    if(trace2Found==1){
+      numTraces = 2;
+      if(trace3Found==1){
+        numTraces = 3;
+      }
+    }
+  }
+  
+  printf("numTraces is %d\n", numTraces);
+
   
 
   //Start printing cache info here
-  printf("Cache Simulator CS 3853 Fall 2023 – Group #11\n\n");
+  int numLoops = 0;
+  while(numLoops<numTraces){
+    printf("Cache Simulator CS 3853 Fall 2023 – Group #11\n\n");
+    
+    //Admittedly this series of ifs is gross. It can be rectified by putting the traces in an array and referencing that
+    if(numLoops==0){
+      //Start with trace 1
+      printf("Trace File: %s\n\n", trace1Name);
+    }
+    if(numLoops==1){
+      //Then trace 2 (if it exists)
+      printf("Trace File: %s\n\n", trace2Name);
+    }
+    if(numLoops==2){
+      //Finally trace 3 (if it exists)
+      printf("Trace File: %s\n\n", trace3Name);
+    } 
+    
+    printf("***** Cache Input Parameters *****\n");
+    printf("Cache Size:                      %d KB\n", cacheSize);//22 spaces
+    printf("Block Size:                      %d bytes\n", blockSize);//22 spaces
+    printf("Associativity:                   %d\n", associativity);//19 spaces
+    printf("Replacement Policy               %s\n\n\n", replacePolicy);//15 spaces
+    
+    
+    printf("***** Cache Calculated Values *****\n");
+    
+    totalBlocks = (cacheSize*1024)/blockSize;
+    printf("Total # Blocks:                  %d\n", totalBlocks);
+    
+    offset = (int)((log10(blockSize) / log10(2)));
+    indexSize = (int)((log10(cacheSize*1024/(blockSize*associativity)) / log10(2)));
+    tagSize = (BUS_SIZE-indexSize-offset);
+    
+    printf("Tag size:                        %d\n", tagSize);
+    
+    
+    printf("Index size:                      %d\n", indexSize);
+    
+    totalRows = (totalBlocks/associativity);
+    printf("Total # Rows:                    %d\n", totalRows);
   
+    numLoops++;
+  }
+    
+    
+
   
   return 0;
 }

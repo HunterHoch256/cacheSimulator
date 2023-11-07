@@ -8,13 +8,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-/*
-int log2(int numIn){
-  int num;
-  num = (int)(log10(numIn) / log10(2));
-  return num;
-}
-*/
+#define BUS_SIZE 32 //We assume a logical bus size of 32 bits
+#define COST_MULTIPLIER 0.09 //This cost multiplier is constant
 
 int main(int argc, char *argv[]){
   
@@ -47,7 +42,6 @@ int main(int argc, char *argv[]){
     }
   
   
-  int count = 0;//Use this to track number if times looped
   char* trace1Name;
   int trace1Found = 0;
   char* trace2Name;
@@ -62,8 +56,6 @@ int main(int argc, char *argv[]){
   int physicalSize = 0; //Im going to convert the values to bytes/KB on the command line, thus it being an int. int luckily has enough room for the max size value 
   //The following values all require calculation
   int totalBlocks;
-  int BUS_SIZE = 32; //THIS IS TECHNICALLY CONSTANT
-  double COST_MULTIPLIER = 0.09; //ALSO CONSTANT, and in 0.09/KB
   int offset;//Might need to make a double
   int tagSize;
   int indexSize;
@@ -71,90 +63,70 @@ int main(int argc, char *argv[]){
   int overhead;
   int implementationMemory; 
   double cost;
+  int numTraces;//This will be used to determine how many cache cycles we go through
   
   
   int i;
   for (i = 1; i < argc; i++){
-    //printf("%s\n", argv[i]);
-    
-    //printf("Comparing %s to -f. Result is: %d\n", argv[i], strcmp(argv[i],"-f"));
     
     //NOTE TO SELF: Change this to a switch statement after verifying it works
     if (strncmp(argv[i], "-f", 2) == 0){
-      //printf("Found trace file\n");
       //Found a trace file indicator! Need to determine the trace to put it in
       if(trace1Found==0){
         //No trace files found yet. Put in trace1Name
         trace1Name = argv[i+1];
         trace1Found = 1;
+        //Tell the loop we'll have at least one trace file
+        numTraces = 1;
       }
       else if(trace2Found==0){
         //Trace 1 has been accounted for, must put in Trace 2
         trace2Name = argv[i+1];
         trace2Found = 1;
+        //Tell the loop we'll have at least two trace files
+        numTraces = 2;
       }
       else{
         //Trace 1 and 2 are both determined. Must put in Trace 3 (last possible trace)
         trace3Name = argv[i+1];
         trace3Found = 1;
+        //Tell the loop we'll have at least three trace files
+        numTraces = 3;
       }
     }
     else if(strncmp(argv[i], "-s", 2)==0){
       //Found a cacheSize indicator!
-      //printf("Found cacheSize\n");
       cacheSize = atoi(argv[i+1]);
     }
     else if(strncmp(argv[i], "-b", 2)==0){
       //Found a blockSize indicator!
-      //printf("Found blockSize\n");
       blockSize = atoi(argv[i+1]);
     }
     else if(strncmp(argv[i], "-a", 2)==0){
       //Found an associativity indicator!
-      //printf("Found associativity\n");
       associativity = atoi(argv[i+1]);
     }
     else if(strncmp(argv[i], "-r", 2)==0){
       //Found a replacePolicy indicator!
-      //printf("Found replacePolicy\n");
       replacePolicy = argv[i+1];
     }
     else if(strncmp(argv[i], "-p", 2)==0){
       //Found a physicalSize indicator!
-      //printf("Found physSize\n");
       physicalSize = atoi(argv[i+1]);
     }
     else {
       //printf("No matching if\n");//DEBUG
     }
     
-    //argv[0] is just the executable, and the current system simply wont trip any of the if statements.
+    //argv[0] is just the executable, and the current system simply won't trip any of the if statements.
     
   }
-  
- 
-  
-  //Calculate number of trace files (i.e # of loops the cache will experience)
-  //Note to self: This could go in with the actual command line processing
-  int numTraces;
-  if (trace1Found==1){
-    numTraces = 1;
-    if(trace2Found==1){
-      numTraces = 2;
-      if(trace3Found==1){
-        numTraces = 3;
-      }
-    }
-  }
-  
-  printf("numTraces is %d\n", numTraces);
-
   
 
   //Start printing cache info here
   int numLoops = 0;
   while(numLoops<numTraces){
-    printf("Cache Simulator CS 3853 Fall 2023 – Group #11\n\n");
+    printf("\nCache Simulator CS 3853 Fall 2023 - Group #11\n\n");
     
     //Admittedly this series of ifs is gross. It can be rectified by putting the traces in an array and referencing that
     if(numLoops==0){
@@ -238,7 +210,7 @@ int main(int argc, char *argv[]){
 
     
     
-    printf("\n\n");
+    printf("\n");
     numLoops++;
   }
    

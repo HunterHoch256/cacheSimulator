@@ -63,13 +63,14 @@ int main(int argc, char *argv[]){
   //The following values all require calculation
   int totalBlocks;
   int BUS_SIZE = 32; //THIS IS TECHNICALLY CONSTANT
+  double COST_MULTIPLIER = 0.09; //ALSO CONSTANT, and in 0.09/KB
   int offset;//Might need to make a double
   int tagSize;
   int indexSize;
   int totalRows;
   int overhead;
   int implementationMemory; 
-  int cost;
+  double cost;
   
   
   int i;
@@ -185,16 +186,31 @@ int main(int argc, char *argv[]){
     indexSize = (int)((log10(cacheSize*1024/(blockSize*associativity)) / log10(2)));
     tagSize = (BUS_SIZE-indexSize-offset);
     
-    printf("Tag size:                        %d\n", tagSize);
-    
-    
-    printf("Index size:                      %d\n", indexSize);
+    printf("Tag size:                        %d bits\n", tagSize);
+    printf("Index size:                      %d bits\n", indexSize);
     
     totalRows = (totalBlocks/associativity);
     printf("Total # Rows:                    %d\n", totalRows);
-  
+    
+    overhead = ((cacheSize*blockSize*associativity)+totalRows);
+    printf("Overhead Size:                   %d bytes\n", overhead);
+    
+    implementationMemory = (cacheSize*1024) + overhead; //This is in bytes 
+    
+    printf("Implementation Memory Size:      %d KB (%d) bytes\n", (implementationMemory/1024), (implementationMemory));
+    
+    printf("Cost                             $%.2lf @ ($0.09 / KB)", ((implementationMemory/1024)*COST_MULTIPLIER));
+    
+    
+    
+    
+    
+    
+    
+    printf("\n\n");
     numLoops++;
   }
+   
     
     
 

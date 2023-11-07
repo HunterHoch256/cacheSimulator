@@ -61,7 +61,7 @@ int main(int argc, char *argv[]){
   int indexSize;
   int totalRows;
   int overhead;
-  int implementationMemory; 
+  double implementationMemory; 
   double cost;
   int numTraces;//This will be used to determine how many cache cycles we go through
   
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]){
     
     implementationMemory = (cacheSize*1024) + overhead; //This is in bytes 
     
-    printf("Implementation Memory Size:      %d KB (%d) bytes\n", (implementationMemory/1024), (implementationMemory));
+    printf("Implementation Memory Size:      %.2lf KB (%.0lf) bytes\n", (implementationMemory/1024), ceil(implementationMemory));
     
     printf("Cost                             $%.2lf @ ($0.09 / KB)\n\n\n", ((implementationMemory/1024)*COST_MULTIPLIER));
     

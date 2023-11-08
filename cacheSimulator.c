@@ -13,7 +13,6 @@
 
 int main(int argc, char *argv[]){
   
-  //printf("HelloWorld!\n");
   
   //Let's look at the following execution example:
   //Sim.exe –f trace1.trc –f trace2.trc –s 512 –b 16 –a 2 –r RR –p 1GBs
@@ -122,11 +121,12 @@ int main(int argc, char *argv[]){
     
   }
   
-
+  printf("\nCache Simulator CS 3853 Fall 2023 - Group #11\n\n");
+  
   //Start printing cache info here
   int numLoops = 0;
   while(numLoops<numTraces){
-    printf("\nCache Simulator CS 3853 Fall 2023 - Group #11\n\n");
+    //printf("\nCache Simulator CS 3853 Fall 2023 - Group #11\n\n");
     
     //Admittedly this series of ifs is gross. It can be rectified by putting the traces in an array and referencing that
     if(numLoops==0){
@@ -210,7 +210,7 @@ int main(int argc, char *argv[]){
 
     
     
-    printf("\n");
+    printf("\n\n");
     numLoops++;
   }
    

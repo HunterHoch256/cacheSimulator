@@ -1,11 +1,10 @@
 CC = gcc
 CFLAGS = -Wall -g
 
-all: Sim
+all: Sim.exe
 
 clean:
-	rm -f *.o Sim
+	rm -f *.o Sim.exe
 
-Sim: cacheSimulator.c
-	$(CC) $(CFLAGS) cacheSimulator.c -o Sim -lm
-
+Sim.exe: cacheSimulator.c
+	$(CC) $(CFLAGS) cacheSimulator.c -o Sim.exe -lm

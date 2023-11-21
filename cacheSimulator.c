@@ -11,17 +11,28 @@
 #define BUS_SIZE 32 //We assume a logical bus size of 32 bits
 #define COST_MULTIPLIER 0.09 //This cost multiplier is constant
 
-typedef struct {
-  int valid;//0 could be invalid, 1 can be valid
-  unsigned long tag;//Might change this variable type
-  //data?
-} CacheLine;
 
 typedef struct {
-  CacheLine *lines;
-  int size;
-  int blockOffsetBits;
+   int valid;//0 for invlaid, 1 for valid
+   unsigned long tag;//each block gets its own tag
+   
+   //data. I'm not technically interested in data for the sake of this assignment
+} Block;
+
+typedef struct {
+  Block *blocks;
+  int roundRobinPosition;
+  //I'm not going to store the index, since it's accessible by position
+  
+} CacheLine;//A cache line is made of blocks, depending on associativity
+
+typedef struct {
+  CacheLine *lines;//Creates numEntries lines
+  int size;//This should be the nnumber of entries
+  int blockOffsetBits;//How many bits makeup the block offset
   int Random; //Set to 1 if Random replacement, set to 0 if Round-Robin
+  int blockSize;//The block size in bytes
+  int associativity;//Can be 1, 2, 4, 8, 16 
 } Cache;
 
 int cacheAccesses = 0;
@@ -32,15 +43,33 @@ int conflictMisses = 0;
 int robinReplace = 0;
   
 void initializeCache(Cache *cache) {
-    int i;
+    //Running through what this does
+    //This function takes in a cache struct that already has its lines mallloced (The number of lines should be equal to the number of rows)
+    //It then runs a loop through
+    int i, j;
     for (i = 0; i < cache->size; i++) {
-        cache->lines[i].valid = 0;
-        cache->lines[i].tag = 0;
+      cache->lines[i].roundRobinPosition = 0;
+      //myCache.lines = malloc(myCache.size * sizeof(CacheLine));
+      cache->lines[i].blocks = malloc(cache->associativity * sizeof(Block));
+      for (j = 0; j < cache->associativity; j++){
+        
+        cache->lines[i].blocks[j].valid = 0;
+        cache->lines[i].blocks[j].tag = 0;
         // Data? Don't think we care about it
+        //cache->lines[i].data = (char *)malloc(cache->blockSize * sizeof(char));
+        /*
+        if (cache->lines[i].data == NULL) {
+          perror("Memory allocation error");
+        }
+        */
+        }
     }
 }  
   
 void simulateMemoryAccess(Cache *cache, unsigned long address) {
+    cacheAccesses++;
+    int numValid = 0;
+    //int tagPos = -1;//Will record the Pos of a matched tag with invalid bit
     // Extract tag and set index from the address
     //printf("address is %x\n", address);
     unsigned long tag = address >> cache->blockOffsetBits;
@@ -49,50 +78,89 @@ void simulateMemoryAccess(Cache *cache, unsigned long address) {
     //printf("setIndex is %d\n\n", setIndex);
     
     // Search for the tag in the set
-    int i;
-    for (i = 0; i < cache->size; i++) {
-        if (cache->lines[setIndex].valid && cache->lines[setIndex].tag == tag) {
+    int i, j;
+    //for (i = 0; i < cache->size; i++) {//Why does this even exist?
+      for (j = 0; j < cache->associativity; j++){
+        //cacheAccesses++;
+        if (cache->lines[setIndex].blocks[j].valid && cache->lines[setIndex].blocks[j].tag == tag) {
             // Cache hit
             //printf("Cache Hit!\n");
             cacheHits++;
             return; // Exit early
-        }
+            }
+        
+        cacheMisses++;
+        //}
     }
 
     // Cache miss
-    cacheMisses++;
-    if (cache->lines[setIndex].valid) {
+    //If we get to this point, that means that there was no matching tags found in any of the blocks at that index.
+    //That means that we need to replace a block in that index, which will be done using either round robin or random depending on the command line input by the user. 
+    //Random will choose a random number between 0 and the associativity-1, which will replace a random block in the set
+    //Round Robin will replace the block indicated by the roundRobinPosition variable, which is initialized to 0 for every set (cache line) and is incremented after a replace is performed.  
+    
+    //Check if all valid bits are set
+    for (i = 0; i < cache->associativity; i++){
+      if (cache->lines[setIndex].blocks[i].valid == 1){
+        numValid++;
+      }
+    }
+    //if numValid is anything less than associativity, then there is a block in the set that is not valid. 
+    //if numValid < associativity, there must be a compulsory miss
+    //if numValid == associativity, then it's a conflict miss
+    
+    
+    //cacheMisses++;
+    if (numValid < cache->associativity-1) {
         // Conflict miss (valid bit was 1 but tag didn't match)
         //printf("Conflict Miss - Replacing Block in Cache\n");
-        conflictMisses++;
+        compulsoryMisses++;
     } else {
         // Compulsory miss (valid bit was 0)
         //printf("Compulsory Miss - Loading Block into Cache\n");
-        compulsoryMisses++;
+        conflictMisses++;
     }
     
-    int replacementIndex;
+    
+    
+    //In the case of a compulsory miss, we're just filling the set up. But because we can choose our replacement policy we must refer to it to fill the block
+    
+    int replacementBlockIndex;
+    
+    //int randomValue = rand() % (maxValue + 1);
     
     if (cache->Random == 1){
       //Use Random Policy
-      replacementIndex = rand() % cache->size;
+      //MUST BE BETWEEN 0 AND ASSOCIATIVITY - 1
+      replacementBlockIndex = rand() % (cache->associativity + 1);;
     }
     else {
       //Use Round Robin Policy
-      replacementIndex = (robinReplace) % cache->size;
+      //replacementIndex = robinReplace % cache->size;
+      
+      replacementBlockIndex = cache->lines[setIndex].roundRobinPosition;
+      
     }
 
     // Update cache line information
     
     //USE replacementIndex here to implement RR AND RND!!!!
-    
-    cache->lines[setIndex].valid = 1;
-    cache->lines[setIndex].tag = tag;
-    // Load the block into the cache, you might fetch it from memory here
-    robinReplace++;
-    if (robinReplace > cache->size){
-      robinReplace = 0;
+    /*
+    for (i = 0; i < cache->blockSize; i++) {
+      cache->lines[setIndex * cache->associativity + replacementIndex].data[i] = 
     }
+    */
+    
+    
+    
+    cache->lines[setIndex].blocks[replacementBlockIndex].valid = 1;
+    cache->lines[setIndex].blocks[replacementBlockIndex].tag = tag;
+    // Load the block into the cache, you might fetch it from memory here
+    cache->lines[setIndex].roundRobinPosition++;
+    if (cache->lines[setIndex].roundRobinPosition >= cache->associativity){
+      cache->lines[setIndex].roundRobinPosition = 0;
+    }
+    //printf("robinReplace: %d\n", cache->lines[setIndex].roundRobinPosition);
 }
  
   
@@ -149,7 +217,7 @@ int main(int argc, char *argv[]){
   int totalRows;
   int overhead;
   double implementationMemory; 
-  double cost;
+  //double cost; Currently unused
   int numTraces;//This will be used to determine how many cache cycles we go through
   
   
@@ -303,10 +371,14 @@ int main(int argc, char *argv[]){
     
     //THE CACHE STILL NEEDS TO BE FORMALLY INITIALIZED
     Cache myCache;
+    myCache.blockSize = blockSize;
+    myCache.associativity = associativity;
     //Get numEntries for the cache. This determines the cache "size"
+    
     int numEntries;
     numEntries = (cacheSize * 1024) / blockSize;  // Adjust for block size
     numEntries = numEntries / associativity;       // Adjust for associativity
+    
     myCache.size = numEntries;
     myCache.lines = malloc(myCache.size * sizeof(CacheLine));
 
@@ -388,10 +460,11 @@ int main(int argc, char *argv[]){
           //I should start by converting the hex addresses (where applicable) to binary. (Maybe not necessary)
           //int z;
           //for (z = 0; z < bytesRead; z++){
-            simulateMemoryAccess(&myCache, memAddress);
+          simulateMemoryAccess(&myCache, memAddress);
+          
+          //}
           if (destAddress != 0){simulateMemoryAccess(&myCache, destAddress);}
           if (srcAddress != 0){simulateMemoryAccess(&myCache, srcAddress);}
-          //}
           
           
           
@@ -409,18 +482,21 @@ int main(int argc, char *argv[]){
       }
       EOF_notReached = false;
     }
-    int validLooper;
+    int i, j;
+    //int validLooper;
     int numInvalid = 0;
-    for (validLooper = 0; validLooper < myCache.size; validLooper++){
-      if (myCache.lines[validLooper].valid == 0){
-        numInvalid++;
+    for (i = 0; i < myCache.size; i++){
+      for (j = 0; j < myCache.associativity; j++){
+        if (myCache.lines[i].blocks[j].valid == 0){
+          numInvalid++;
+        }
       }
-    }
+    } 
     
     
     
     //printf("cacheHits: %d\n", cacheHits);
-    cacheAccesses = cacheHits+cacheMisses;
+    //cacheAccesses = cacheHits+cacheMisses;
     printf("Total Cache Accesses:    %d\n", cacheAccesses);
     printf("Cache Hits:              %d\n", cacheHits);
     printf("Cache Misses:            %d\n", cacheMisses);
@@ -437,7 +513,7 @@ int main(int argc, char *argv[]){
     printf("CPI:                     UNDETERMINED Cycles/Instruction\n\n");
     double unusedKB = ((totalBlocks-compulsoryMisses) * (blockSize+overhead/1024)) / 1024;
     double waste = COST_MULTIPLIER * unusedKB;
-    printf("Unused Cache Space:      %.2f KB / %.2f KB = %.2f\%% Waste: %.2f\n", unusedKB, implementationMemory/1024, unusedKB/implementationMemory/1024,waste);
+    printf("Unused Cache Space:      %.2f KB / %.2f KB = %.2f\%% Waste: $%.2f\n", unusedKB, implementationMemory/1024, unusedKB/implementationMemory/1024,waste);
     printf("Unused Cache Blocks:     %d / %d\n", numInvalid, totalBlocks);
     printf("\n\n");
     numLoops++;

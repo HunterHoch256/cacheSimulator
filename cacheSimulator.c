@@ -11,7 +11,95 @@
 #define BUS_SIZE 32 //We assume a logical bus size of 32 bits
 #define COST_MULTIPLIER 0.09 //This cost multiplier is constant
 
+typedef struct {
+  int valid;//0 could be invalid, 1 can be valid
+  unsigned long tag;//Might change this variable type
+  //data?
+} CacheLine;
+
+typedef struct {
+  CacheLine *lines;
+  int size;
+  int blockOffsetBits;
+  int Random; //Set to 1 if Random replacement, set to 0 if Round-Robin
+} Cache;
+
+int cacheAccesses = 0;
+int cacheHits = 0;
+int cacheMisses = 0;
+int compulsoryMisses = 0;
+int conflictMisses = 0;
+int robinReplace = 0;
+  
+void initializeCache(Cache *cache) {
+    int i;
+    for (i = 0; i < cache->size; i++) {
+        cache->lines[i].valid = 0;
+        cache->lines[i].tag = 0;
+        // Data? Don't think we care about it
+    }
+}  
+  
+void simulateMemoryAccess(Cache *cache, unsigned long address) {
+    // Extract tag and set index from the address
+    //printf("address is %x\n", address);
+    unsigned long tag = address >> cache->blockOffsetBits;
+    //printf("tag is %x\n", tag);
+    int setIndex = (address >> cache->blockOffsetBits) % cache->size;
+    //printf("setIndex is %d\n\n", setIndex);
+    
+    // Search for the tag in the set
+    int i;
+    for (i = 0; i < cache->size; i++) {
+        if (cache->lines[setIndex].valid && cache->lines[setIndex].tag == tag) {
+            // Cache hit
+            //printf("Cache Hit!\n");
+            cacheHits++;
+            return; // Exit early
+        }
+    }
+
+    // Cache miss
+    cacheMisses++;
+    if (cache->lines[setIndex].valid) {
+        // Conflict miss (valid bit was 1 but tag didn't match)
+        //printf("Conflict Miss - Replacing Block in Cache\n");
+        conflictMisses++;
+    } else {
+        // Compulsory miss (valid bit was 0)
+        //printf("Compulsory Miss - Loading Block into Cache\n");
+        compulsoryMisses++;
+    }
+    
+    int replacementIndex;
+    
+    if (cache->Random == 1){
+      //Use Random Policy
+      replacementIndex = rand() % cache->size;
+    }
+    else {
+      //Use Round Robin Policy
+      replacementIndex = (robinReplace) % cache->size;
+    }
+
+    // Update cache line information
+    
+    //USE replacementIndex here to implement RR AND RND!!!!
+    
+    cache->lines[setIndex].valid = 1;
+    cache->lines[setIndex].tag = tag;
+    // Load the block into the cache, you might fetch it from memory here
+    robinReplace++;
+    if (robinReplace > cache->size){
+      robinReplace = 0;
+    }
+}
+ 
+  
+
 int main(int argc, char *argv[]){
+
+  srand(time(NULL));
   
   
   //Let's look at the following execution example:
@@ -121,6 +209,8 @@ int main(int argc, char *argv[]){
     
   }
   
+  
+  
   printf("\nCache Simulator CS 3853 Fall 2023 - Group #11\n\n");
   
   //Start printing cache info here
@@ -177,7 +267,7 @@ int main(int argc, char *argv[]){
     //The following regards parsing the trace file (first trace only)
     
     if(numLoops==0){
-      printf("Printing the first 20 addresses and lengths of cache operations in %s:\n\n", trace1Name);
+      //printf("Printing the first 20 addresses and lengths of cache operations in %s:\n\n", trace1Name);
       int whileLoops = 0;
       //Only need to print for first trace file
       FILE *file = fopen(trace1Name, "r");
@@ -200,7 +290,7 @@ int main(int argc, char *argv[]){
         
         //sscanf length and adress
         if( sscanf(prefix, "EIP (%d): %s", &length, address_str) == 2){
-          printf("0x%s (0%d)\n", address_str, length);
+          //printf("0x%s (0%d)\n", address_str, length);
         }
         whileLoops++;
       }
@@ -208,15 +298,154 @@ int main(int argc, char *argv[]){
 
     }
 
+    //I'm gonna try to start getting the important stuff here
+    printf("***** *****  CACHE SIMULATION RESULTS  ***** *****\n");
+    
+    //THE CACHE STILL NEEDS TO BE FORMALLY INITIALIZED
+    Cache myCache;
+    //Get numEntries for the cache. This determines the cache "size"
+    int numEntries;
+    numEntries = (cacheSize * 1024) / blockSize;  // Adjust for block size
+    numEntries = numEntries / associativity;       // Adjust for associativity
+    myCache.size = numEntries;
+    myCache.lines = malloc(myCache.size * sizeof(CacheLine));
+
+    myCache.blockOffsetBits = offset;//This should work, if not I need to check it
     
     
+    
+    if (strcmp(replacePolicy, "RR") == 0){
+      //Round Robin found
+      myCache.Random = 0;
+    }
+    else {
+      myCache.Random = 1;
+    }
+    
+    if (myCache.lines == NULL) {
+        perror("Memory allocation error");
+        return 1;
+    }
+
+    // Initialize the cache
+    initializeCache(&myCache);
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    //For our cache sims purposes, this is all that matters
+    FILE *file = fopen(trace1Name, "r");//THIS MUST BE UPDATED TO REFLECT WHICH TRACE TO OPEN. TRACE1 IS A TEMP SOLUTION
+    char line[100];//Use as my buffer
+    int bytesRead;
+    unsigned long memAddress;
+    unsigned long destAddress;
+    unsigned long srcAddress;
+
+    
+    //use fgets to parse data and sscanf to store
+    //For the first line, pos line[5,6] gets the length
+    //on that same line[10,17] gets the memAddress
+    //On the NEXT line, line[6,13] gets the destAddress
+    //on that same line, line[33,40] gets the srcAddress
+    
+    int lineCounter = 0; //Used to determine the type of line fgets is on
+    //Since the file is very strictly organize, we can use this variable to loop between 0, 1, and 2 until EOF
+    bool EOF_notReached = true;
+    
+    while (EOF_notReached != false){//Will loop until EOF
+      
+      while (fgets(line, sizeof(line), file)){
+        
+      
+        if (lineCounter == 0){//First line
+          //bytesRead = atoi(line[5,6]);
+          //memAddress = line[10,17]
+          sscanf(line, "EIP (%d): %lx", &bytesRead, &memAddress);
+          //printf("bytesRead: %d, Address: 0x%lx\n", bytesRead, memAddress);//Just to make sure it's working
+        }
+        else if (lineCounter == 1){//Second line
+          sscanf(line, "dstM: %lx %*s srcM: %lx", &destAddress, &srcAddress);
+          //printf("dstM Address: 0x%lx, srcM Address: 0x%lx\n", destAddress, srcAddress);
+          
+        }
+        else {//Must be the empty line
+          lineCounter = -1;//Reset line counter for next set
+          //It's possible an extra line in the trace file might break this code. If this happens, the program may crash. This will need to be handled
+          
+          //This is also probably where all the actual cache stuff will happen
+          //Since the pieces are in place to perform a cache operation, everything will be done here in order to affect the cache. This will be a very VERY intensive else statment.
+          
+          //I should start by converting the hex addresses (where applicable) to binary. (Maybe not necessary)
+          //int z;
+          //for (z = 0; z < bytesRead; z++){
+            simulateMemoryAccess(&myCache, memAddress);
+          if (destAddress != 0){simulateMemoryAccess(&myCache, destAddress);}
+          if (srcAddress != 0){simulateMemoryAccess(&myCache, srcAddress);}
+          //}
+          
+          
+          
+          
+          
+          
+          
+          
+          
+        }
+        
+        //printf("lineCounter: %d\n\n", lineCounter);
+        
+        lineCounter++;
+      }
+      EOF_notReached = false;
+    }
+    int validLooper;
+    int numInvalid = 0;
+    for (validLooper = 0; validLooper < myCache.size; validLooper++){
+      if (myCache.lines[validLooper].valid == 0){
+        numInvalid++;
+      }
+    }
+    
+    
+    
+    //printf("cacheHits: %d\n", cacheHits);
+    cacheAccesses = cacheHits+cacheMisses;
+    printf("Total Cache Accesses:    %d\n", cacheAccesses);
+    printf("Cache Hits:              %d\n", cacheHits);
+    printf("Cache Misses:            %d\n", cacheMisses);
+    printf("--- Compulsory Misses       %d\n", compulsoryMisses);
+    printf("--- Conflict Misses:        %d\n\n", conflictMisses);
+    
+    printf("***** *****  CACHE HIT & MISS RATE:  ***** *****\n\n");
+    
+    double hitRate = (cacheHits*100.0)/cacheAccesses;
+    printf("Hit Rate:                %f%%\n", hitRate);
+    double missRate = 100 - hitRate;
+    printf("Miss Rate:               %f%%\n", missRate);
+    //Have not included CPI implementation
+    printf("CPI:                     UNDETERMINED Cycles/Instruction\n\n");
+    double unusedKB = ((totalBlocks-compulsoryMisses) * (blockSize+overhead/1024)) / 1024;
+    double waste = COST_MULTIPLIER * unusedKB;
+    printf("Unused Cache Space:      %.2f KB / %.2f KB = %.2f\%% Waste: %.2f\n", unusedKB, implementationMemory/1024, unusedKB/implementationMemory/1024,waste);
+    printf("Unused Cache Blocks:     %d / %d\n", numInvalid, totalBlocks);
     printf("\n\n");
     numLoops++;
   }
    
+  
     
-    
-
+  
   
   return 0;
 }

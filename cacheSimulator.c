@@ -41,11 +41,13 @@ int cacheMisses = 0;
 int compulsoryMisses = 0;
 int conflictMisses = 0;
 int robinReplace = 0;
+int totalCycles = 0;
   
 void initializeCache(Cache *cache) {
     //Running through what this does
     //This function takes in a cache struct that already has its lines mallloced (The number of lines should be equal to the number of rows)
     //It then runs a loop through
+    
     int i, j;
     for (i = 0; i < cache->size; i++) {
       cache->lines[i].roundRobinPosition = 0;
@@ -55,6 +57,7 @@ void initializeCache(Cache *cache) {
         
         cache->lines[i].blocks[j].valid = 0;
         cache->lines[i].blocks[j].tag = 0;
+        totalCycles++;
         // Data? Don't think we care about it
         //cache->lines[i].data = (char *)malloc(cache->blockSize * sizeof(char));
         /*
@@ -65,10 +68,29 @@ void initializeCache(Cache *cache) {
         }
     }
 }  
+
+void freeCache(Cache *cache){
+	//Need to free the cache, the cache lines, and the cache blocks in those lines
+	int i, j;
+	for (i = 0; i < cache->size; i++){
+		//for (j = 0; j < cache->associativity; j++){
+			//free(&cache->lines[i].blocks[j]);//Is this valid?
+		//}
+		free(cache->lines[i].blocks);
+	}
+	free(cache->lines);//Is this valid?
+	//still need to actually free the cache struct outside this function
+}
   
-void simulateMemoryAccess(Cache *cache, unsigned long address) {
+void simulateMemoryAccess(Cache *cache, unsigned long address, int length) {
+    int missCyclesAdds = 0;
     cacheAccesses++;
     int numValid = 0;
+    int blockOffset = address & (cache->blockSize - 1);
+    //int activeBlock = 0;
+    //printf("blockOffset: %d\n", blockOffset);
+    int blockSize = cache->blockOffsetBits^2;
+    
     //int tagPos = -1;//Will record the Pos of a matched tag with invalid bit
     // Extract tag and set index from the address
     //printf("address is %x\n", address);
@@ -76,20 +98,60 @@ void simulateMemoryAccess(Cache *cache, unsigned long address) {
     //printf("tag is %x\n", tag);
     int setIndex = (address >> cache->blockOffsetBits) % cache->size;
     //printf("setIndex is %d\n\n", setIndex);
+    int totalSetSize = blockSize*cache->associativity;//This will always be even, and in bytes
+    
+    //This variable basically gives the current byte pos we're looking at in the set as a whole, and is scalable accross associativities
+    /*
+    int currByteInSet = blockOffset + ((setIndex+1) * blockSize);
+    currByteInSet += length;
+    if (currByteInSet > (totalSetSize-1)){
+      //This essentially indicates that we had another access into another row
+      int numRowsAccessed = currByteInSet / totalSetSize;
+      int i; 
+      for (i = 0; i < numRowsAccessed; i++){
+        cacheAccesses++;  
+      }
+      //A miss is here too, but the type needs to be determined
+      //cacheAccesses++;
+    } 
+    */
     
     // Search for the tag in the set
     int i, j;
     //for (i = 0; i < cache->size; i++) {//Why does this even exist?
       for (j = 0; j < cache->associativity; j++){
+      //cacheAccesses++;
         //cacheAccesses++;
         if (cache->lines[setIndex].blocks[j].valid && cache->lines[setIndex].blocks[j].tag == tag) {
             // Cache hit
             //printf("Cache Hit!\n");
+            
+            /*
+            
+            int currByteInSet = blockOffset + ((j+1) * blockSize);
+            //printf("currByteInSet: %d\n", currByteInSet);
+            currByteInSet += length;
+            if (currByteInSet > (totalSetSize-1)){
+            //This essentially indicates that we had another access into another row
+            int extraNumRowsAccessed = floor(currByteInSet / totalSetSize);
+            printf("extraNumRowsAccessed: %d\n", extraNumRowsAccessed);
+            int i;
+            for (i = 0; i < extraNumRowsAccessed; i++){
+              cacheAccesses++;  
+            }
+      //A miss is here too, but the type needs to be determined
+      //cacheAccesses++;
+          } 
+          
+          */
+          
+          
+            
             cacheHits++;
             return; // Exit early
             }
         
-        cacheMisses++;
+        //cacheMisses++;
         //}
     }
 
@@ -99,6 +161,8 @@ void simulateMemoryAccess(Cache *cache, unsigned long address) {
     //Random will choose a random number between 0 and the associativity-1, which will replace a random block in the set
     //Round Robin will replace the block indicated by the roundRobinPosition variable, which is initialized to 0 for every set (cache line) and is incremented after a replace is performed.  
     
+    missCyclesAdds = 4 * ceil(blockSize/4);
+    totalCycles += missCyclesAdds;
     //Check if all valid bits are set
     for (i = 0; i < cache->associativity; i++){
       if (cache->lines[setIndex].blocks[i].valid == 1){
@@ -366,6 +430,22 @@ int main(int argc, char *argv[]){
 
     }
 
+	
+    //This is where a loop should begin
+/*
+int loopTimes;
+if (trace1found==1){//Theoretically, this should always occur or the program wouldn't be running
+	loopTimes++;
+	if (trace2found==2){
+		loopTimes++;
+		if (trace3found==3){
+			loopTimes++;
+		}
+	}
+}
+int finished = 0;
+while (finished=0){
+*/
     //I'm gonna try to start getting the important stuff here
     printf("***** *****  CACHE SIMULATION RESULTS  ***** *****\n");
     
@@ -400,23 +480,27 @@ int main(int argc, char *argv[]){
     }
 
     // Initialize the cache
-    initializeCache(&myCache);
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    initializeCache(&myCache);    
     
     
     //For our cache sims purposes, this is all that matters
-    FILE *file = fopen(trace1Name, "r");//THIS MUST BE UPDATED TO REFLECT WHICH TRACE TO OPEN. TRACE1 IS A TEMP SOLUTION
+    
+    //FILE *file = fopen(trace1Name, "r");//THIS MUST BE UPDATED TO REFLECT WHICH TRACE TO OPEN. TRACE1 IS A TEMP SOLUTION
+    
+    char *fileName;
+    
+    if (numLoops == 0){
+      fileName = trace1Name;
+    }   
+    if (numLoops == 1){
+      fileName = trace2Name;
+    }
+    if (numLoops == 2){
+      fileName = trace3Name;
+    }   
+       
+    FILE *file = fopen(fileName, "r"); 
+    
     char line[100];//Use as my buffer
     int bytesRead;
     unsigned long memAddress;
@@ -460,12 +544,14 @@ int main(int argc, char *argv[]){
           //I should start by converting the hex addresses (where applicable) to binary. (Maybe not necessary)
           //int z;
           //for (z = 0; z < bytesRead; z++){
-          simulateMemoryAccess(&myCache, memAddress);
-          
+          simulateMemoryAccess(&myCache, memAddress, bytesRead);
+          totalCycles+=2;
           //}
-          if (destAddress != 0){simulateMemoryAccess(&myCache, destAddress);}
-          if (srcAddress != 0){simulateMemoryAccess(&myCache, srcAddress);}
           
+          if (destAddress != 0){simulateMemoryAccess(&myCache, destAddress, bytesRead);}
+          totalCycles+=1;
+          if (srcAddress != 0){simulateMemoryAccess(&myCache, srcAddress, bytesRead);}
+          totalCycles+=1;
           
           
           
@@ -494,7 +580,7 @@ int main(int argc, char *argv[]){
     } 
     
     
-    
+    cacheMisses = compulsoryMisses + conflictMisses;
     //printf("cacheHits: %d\n", cacheHits);
     //cacheAccesses = cacheHits+cacheMisses;
     printf("Total Cache Accesses:    %d\n", cacheAccesses);
@@ -510,13 +596,26 @@ int main(int argc, char *argv[]){
     double missRate = 100 - hitRate;
     printf("Miss Rate:               %f%%\n", missRate);
     //Have not included CPI implementation
-    printf("CPI:                     UNDETERMINED Cycles/Instruction\n\n");
-    double unusedKB = ((totalBlocks-compulsoryMisses) * (blockSize+overhead/1024)) / 1024;
+    double CPI = (double)(totalCycles/cacheAccesses); 
+    printf("CPI:                     %.2lf Cycles/Instruction\n\n", CPI);
+    double unusedKB = ((totalBlocks-compulsoryMisses) * (blockSize+overhead/1024)) / 1024; 
     double waste = COST_MULTIPLIER * unusedKB;
     printf("Unused Cache Space:      %.2f KB / %.2f KB = %.2f\%% Waste: $%.2f\n", unusedKB, implementationMemory/1024, unusedKB/implementationMemory/1024,waste);
     printf("Unused Cache Blocks:     %d / %d\n", numInvalid, totalBlocks);
     printf("\n\n");
     numLoops++;
+
+	cacheAccesses = 0;
+	cacheHits = 0;
+	cacheMisses = 0;
+	compulsoryMisses = 0;
+	conflictMisses = 0;
+	robinReplace = 0;
+  totalCycles = 0;
+
+	//I need to free the initial cache, the cache lines, and the cache blocks in those lines
+	//freeCache(&myCache);
+	//free(&myCache);//Is this valid?
   }
    
   
